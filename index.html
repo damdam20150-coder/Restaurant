@@ -99,56 +99,53 @@ input{width:100%;padding:8px;margin:5px 0;border-radius:6px;border:1px solid #cc
 
 <div id="data" class="card hidden">
 <h3>ข้อมูลย้อนหลัง</h3>
-
-<!-- ✅ เพิ่มปุ่มส่งไฟล์ -->
 <button class="dark" onclick="exportExcel()">📤 ส่งไฟล์ Excel</button>
-
 <div id="allData"></div>
 </div>
 
 <script>
 function today(){return new Date().toISOString().split("T")[0];}
 function nowTime(){return new Date().toLocaleTimeString();}
-let db=JSON.parse(localStorage.getItem("restaurantDB"))||{};
-let currentBill=[];
-let selectedPayment="สด";
+var db=JSON.parse(localStorage.getItem("restaurantDB"))||{};
+var currentBill=[];
+var selectedPayment="สด";
 
-/* ===== ระบบรีเฟรชตอนเที่ยงคืน ===== */
-function autoRefreshAtMidnight(){
-let now=new Date();
-let tomorrow=new Date();
-tomorrow.setDate(now.getDate()+1);
-tomorrow.setHours(0,0,0,0);
-let ms=tomorrow-now;
-setTimeout(function(){
-location.reload();
-},ms);
-}
-autoRefreshAtMidnight();
-
-/* ===== ระบบเลขบิลรีทุกวัน ===== */
+/* ===== เลขบิลรีทุกวัน ===== */
 function getNextBillNo(date){
 if(!db[date] || !db[date].income) return 1;
 return db[date].income.length + 1;
 }
 
+/* ===== รีเฟรชตอนเที่ยงคืน ===== */
+function autoRefreshAtMidnight(){
+var now=new Date();
+var tomorrow=new Date();
+tomorrow.setDate(now.getDate()+1);
+tomorrow.setHours(0,0,0,0);
+var ms=tomorrow-now;
+setTimeout(function(){ location.reload(); },ms);
+}
+autoRefreshAtMidnight();
+
 function selectPayment(type,btn){
 selectedPayment=type;
-document.querySelectorAll(".pay-btn").forEach(b=>b.classList.remove("active"));
+var btns=document.querySelectorAll(".pay-btn");
+for(var i=0;i<btns.length;i++){ btns[i].classList.remove("active"); }
 btn.classList.add("active");
 }
 
 function show(p){
-["home","income","expense","data"].forEach(id=>{
-document.getElementById(id).classList.add("hidden");
-});
+var pages=["home","income","expense","data"];
+for(var i=0;i<pages.length;i++){
+document.getElementById(pages[i]).classList.add("hidden");
+}
 document.getElementById(p).classList.remove("hidden");
 updateDashboard();
 renderAllData();
 }
 
 function addMenu(name,price){
-currentBill.push({name,price});
+currentBill.push({name:name,price:price});
 renderBill();
 }
 
@@ -158,19 +155,13 @@ document.getElementById("billList").innerHTML="ยังไม่มีราย
 document.getElementById("billTotal").innerText=0;
 return;
 }
-let total=0,html="";
-currentBill.forEach((i,index)=>{
-total+=i.price;
-html+=`${i.name} - ${i.price} บาท 
-<button onclick="removeItem(${index})">❌</button><br>`;
-});
+var total=0,html="";
+for(var i=0;i<currentBill.length;i++){
+total+=currentBill[i].price;
+html+=currentBill[i].name+" - "+currentBill[i].price+" บาท<br>";
+}
 document.getElementById("billList").innerHTML=html;
 document.getElementById("billTotal").innerText=total;
-}
-
-function removeItem(i){
-currentBill.splice(i,1);
-renderBill();
 }
 
 function clearBill(){
@@ -180,11 +171,19 @@ renderBill();
 
 function saveIncome(){
 if(currentBill.length===0)return;
-let t=today();
+var t=today();
 if(!db[t])db[t]={income:[],expense:[]};
-let total=currentBill.reduce((a,b)=>a+b.price,0);
-let itemsToSave=currentBill.map(i=>({name:i.name,price:i.price}));
-let billNo=getNextBillNo(t);
+
+var total=0;
+for(var i=0;i<currentBill.length;i++){ total+=currentBill[i].price; }
+
+var itemsToSave=[];
+for(var j=0;j<currentBill.length;j++){
+itemsToSave.push({name:currentBill[j].name,price:currentBill[j].price});
+}
+
+var billNo=getNextBillNo(t);
+
 db[t].income.unshift({
 billNo: billNo,
 items: itemsToSave,
@@ -192,6 +191,7 @@ total: total,
 payment: selectedPayment,
 time: nowTime()
 });
+
 currentBill=[];
 renderBill();
 saveDB();
@@ -199,71 +199,114 @@ updateDashboard();
 renderAllData();
 }
 
+/* ===== แสดงข้อมูล + เลขบิล ===== */
 function renderAllData(){
-let html='<div class="data-grid">';
-let dates=Object.keys(db).sort().reverse();
-dates.forEach(date=>{
-html+=`<div><h4>${date}</h4>`;
-(db[date].income||[]).forEach(b=>{
-let itemList="";
+var html='<div class="data-grid">';
+var dates=Object.keys(db).sort().reverse();
+
+for(var d=0; d<dates.length; d++){
+var date=dates[d];
+
+html+="<div><h4>"+date+"</h4>";
+
+var incomes=db[date].income || [];
+for(var i=0;i<incomes.length;i++){
+var b=incomes[i];
+var billDisplay=b.billNo || (incomes.length-i);
+var itemList="";
+
 if(b.items){
-b.items.forEach(i=>{
-itemList+=`- ${i.name} ${i.price} บาท<br>`;
-});
+for(var x=0;x<b.items.length;x++){
+itemList+="- "+b.items[x].name+" "+b.items[x].price+" บาท<br>";
 }
-html+=`
-<div class="data-box income-box">
-<strong>
-<span class="bill-no">บิล #${b.billNo || "-"}</span>
-รายรับ (${b.payment}) ${b.total} บาท
-<span class="time-right">${b.time}</span>
-</strong><br>
-${itemList}
-</div>`;
-});
+}
+
+html+='<div class="data-box income-box"><strong>';
+html+='<span class="bill-no">บิล #'+billDisplay+'</span> ';
+html+='รายรับ ('+b.payment+') '+b.total+' บาท';
+html+='<span class="time-right">'+b.time+'</span>';
+html+='</strong><br>'+itemList+'</div>';
+}
 html+='</div>';
 
-html+=`<div><h4>${date}</h4>`;
-(db[date].expense||[]).forEach(e=>{
-html+=`
-<div class="data-box expense-box">
-<strong>
-รายจ่าย ${e.amount} บาท
-<span class="time-right">${e.time}</span>
-</strong><br>
-รายละเอียด: ${e.note || "-"}
-</div>`;
-});
+html+="<div><h4>"+date+"</h4>";
+var expenses=db[date].expense || [];
+for(var e=0;e<expenses.length;e++){
+var ex=expenses[e];
+html+='<div class="data-box expense-box"><strong>';
+html+='รายจ่าย '+ex.amount+' บาท';
+html+='<span class="time-right">'+ex.time+'</span>';
+html+='</strong><br>รายละเอียด: '+(ex.note||"-")+'</div>';
+}
 html+='</div>';
-});
+}
+
 html+='</div>';
 document.getElementById("allData").innerHTML=html;
 }
 
-/* ===== ส่งไฟล์ Excel ===== */
+/* ===== ส่งออกไฟล์พร้อมรายละเอียดเมนู ===== */
 function exportExcel(){
-let csv="วันที่,เลขบิล,ประเภท,ยอดเงิน,เวลา\n";
-Object.keys(db).forEach(date=>{
-(db[date].income||[]).forEach(b=>{
-csv+=`${date},${b.billNo},${b.payment},${b.total},${b.time}\n`;
-});
-(db[date].expense||[]).forEach(e=>{
-csv+=`${date},-,รายจ่าย,${e.amount},${e.time}\n`;
-});
-});
-let blob=new Blob([csv],{type:"text/csv"});
-let link=document.createElement("a");
+
+var csv="วันที่เวลา,เลขบิล,ประเภท,รายการ,ยอดรวม\n";
+var dates=Object.keys(db);
+
+for(var i=0;i<dates.length;i++){
+var date=dates[i];
+
+var incomes=db[date].income||[];
+for(var j=0;j<incomes.length;j++){
+var b=incomes[j];
+
+var itemText="";
+if(b.items){
+for(var x=0;x<b.items.length;x++){
+itemText+=b.items[x].name+"("+b.items[x].price+") ";
+}
+}
+
+/* รวมวัน+เวลา */
+var dateTime=date+" "+b.time;
+
+/* ใช้ ="" เพื่อบังคับ Excel อ่านเป็นข้อความ */
+csv+="=\""+dateTime+"\","
++"=\""+(b.billNo||"-")+"\","
++"=\""+b.payment+"\","
++"=\""+itemText+"\","
++"=\""+b.total+"\"\n";
+}
+
+var expenses=db[date].expense||[];
+for(var e=0;e<expenses.length;e++){
+var ex=expenses[e];
+
+var dateTime2=date+" "+ex.time;
+
+csv+="=\""+dateTime2+"\","
++"=\"-\","
++"=\"รายจ่าย\","
++"=\""+(ex.note||"-")+"\","
++"=\""+ex.amount+"\"\n";
+}
+}
+
+/* ใส่ BOM */
+var BOM="\uFEFF";
+var blob=new Blob([BOM+csv],{type:"text/csv;charset=utf-8;"});
+
+var link=document.createElement("a");
 link.href=URL.createObjectURL(blob);
 link.download="restaurant-data.csv";
 link.click();
 }
 
+
 function saveExpense(){
-let t=today();
+var t=today();
 if(!db[t])db[t]={income:[],expense:[]};
-let amt=Number(document.getElementById("expenseAmount").value)||0;
-let note=document.getElementById("expenseNote").value||"-";
-db[t].expense.unshift({amount:amt,note,time:nowTime()});
+var amt=Number(document.getElementById("expenseAmount").value)||0;
+var note=document.getElementById("expenseNote").value||"-";
+db[t].expense.unshift({amount:amt,note:note,time:nowTime()});
 document.getElementById("expenseAmount").value="";
 document.getElementById("expenseNote").value="";
 saveDB();
@@ -272,23 +315,26 @@ renderAllData();
 }
 
 function updateDashboard(){
-let t=today();
-let cash=0,transfer=0,grab=0,lineman=0;
-(db[t]?.income||[]).forEach(b=>{
-if(b.payment==="สด")cash+=b.total;
-if(b.payment==="โอน")transfer+=b.total;
-if(b.payment==="Grab")grab+=b.total;
-if(b.payment==="LINE MAN")lineman+=b.total;
-});
-let income=cash+transfer+grab+lineman;
-let expense=(db[t]?.expense||[]).reduce((a,b)=>a+b.amount,0);
+var t=today();
+var cash=0,transfer=0,grab=0,lineman=0;
+var incomes=db[t] && db[t].income ? db[t].income : [];
+for(var i=0;i<incomes.length;i++){
+if(incomes[i].payment==="สด")cash+=incomes[i].total;
+if(incomes[i].payment==="โอน")transfer+=incomes[i].total;
+if(incomes[i].payment==="Grab")grab+=incomes[i].total;
+if(incomes[i].payment==="LINE MAN")lineman+=incomes[i].total;
+}
+var expenses=db[t] && db[t].expense ? db[t].expense : [];
+var expenseTotal=0;
+for(var j=0;j<expenses.length;j++){ expenseTotal+=expenses[j].amount; }
+
 document.getElementById("cashTotal").innerText=cash;
 document.getElementById("transferTotal").innerText=transfer;
 document.getElementById("grabTotal").innerText=grab;
 document.getElementById("linemanTotal").innerText=lineman;
-document.getElementById("incomeTotal").innerText=income;
-document.getElementById("expenseTotal").innerText=expense;
-document.getElementById("profitTotal").innerText=income-expense;
+document.getElementById("incomeTotal").innerText=cash+transfer+grab+lineman;
+document.getElementById("expenseTotal").innerText=expenseTotal;
+document.getElementById("profitTotal").innerText=(cash+transfer+grab+lineman)-expenseTotal;
 }
 
 function resetData(){

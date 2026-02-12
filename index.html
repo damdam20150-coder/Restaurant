@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Restaurant System PRO</title>
+
+<style>
+body{font-family:Arial;background:#f4f6f8;margin:0;padding:15px;}
+.card{background:#fff;padding:15px;border-radius:12px;margin-bottom:15px;box-shadow:0 2px 6px rgba(0,0,0,0.1);}
+button{padding:8px;border:none;border-radius:8px;margin:4px;font-size:14px;}
+.dark{background:#111;color:#fff;width:100%;}
+.light{background:#ddd;width:100%;}
+.nav{display:flex;gap:5px;margin-bottom:10px;}
+.nav button{flex:1;}
+.menu-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.hidden{display:none;}
+input,select{width:100%;padding:8px;margin:5px 0;border-radius:6px;border:1px solid #ccc;}
+.bill-box{background:#f9f9f9;padding:8px;border-radius:8px;margin-bottom:8px;font-size:13px;}
+.income-box{border-left:5px solid #4CAF50;}
+.expense-box{border-left:5px solid #f44336;}
+.section-title{font-weight:bold;margin-bottom:5px;}
+
+.toast{
+position:fixed;
+top:20px;
+right:20px;
+background:#4CAF50;
+color:white;
+padding:12px 18px;
+border-radius:8px;
+box-shadow:0 4px 10px rgba(0,0,0,0.2);
+opacity:0;
+transition:0.3s;
+z-index:999;
+}
+.toast.show{opacity:1;}
+</style>
+</head>
+
+<body>
+
+<div class="toast" id="toast"></div>
+
+<div class="nav">
+<button onclick="show('home')">🏠</button>
+<button onclick="show('income')">💰</button>
+<button onclick="show('expense')">💸</button>
+<button onclick="show('data')">📊</button>
+<button onclick="resetData()">🗑</button>
+</div>
+
+<!-- DASHBOARD -->
+<div id="home" class="card">
+<h3>สรุปวันนี้</h3>
+<div>💵 เงินสด: <span id="cashTotal">0</span></div>
+<div>📲 โอน: <span id="transferTotal">0</span></div>
+<div>🛵 Grab: <span id="grabTotal">0</span></div>
+<div>🟢 LINE MAN: <span id="linemanTotal">0</span></div>
+<hr>
+<div><strong>รายรับรวม:</strong> <span id="incomeTotal">0</span></div>
+<div><strong>รายจ่ายรวม:</strong> <span id="expenseTotal">0</span></div>
+<div><strong>กำไร:</strong> <span id="profitTotal">0</span></div>
+</div>
+
+<!-- INCOME -->
+<div id="income" class="card hidden">
+<h3>เพิ่มรายรับ</h3>
+
+<select id="paymentType">
+<option value="สด">สด</option>
+<option value="โอน">โอน</option>
+<option value="Grab">Grab</option>
+<option value="LINE MAN">LINE MAN</option>
+</select>
+
+<div class="menu-grid">
+<div>
+<div class="section-title">🍜 เมนูหลัก</div>
+<button class="light" onclick="addMenu('น้ำยาปลา',50)">น้ำยาปลา 50</button>
+<button class="light" onclick="addMenu('น้ำยาป่า',50)">น้ำยาป่า 50</button>
+<button class="light" onclick="addMenu('น้ำยาผสม',50)">น้ำยาผสม 50</button>
+<button class="light" onclick="addMenu('น้ำยาปู',70)">น้ำยาปู 70</button>
+</div>
+<div>
+<div class="section-title">➕ Add On</div>
+<button class="light" onclick="addMenu('ลูกชิ้น',10)">ลูกชิ้น 10</button>
+<button class="light" onclick="addMenu('เท้าไก่',20)">เท้าไก่ 20</button>
+<button class="light" onclick="addMenu('ลูกชิ้น+เท้าไก่',20)">ลูกชิ้น+เท้าไก่ 20</button>
+<button class="light" onclick="addMenu('ขนมจีน',10)">ขนมจีน 10</button>
+<button class="light" onclick="addMenu('ไข่ต้ม',10)">ไข่ต้ม 10</button>
+</div>
+</div>
+
+<h4>รายการในบิล</h4>
+<div id="billList">ยังไม่มีรายการ</div>
+<div><strong>รวม: <span id="billTotal">0</span> บาท</strong></div>
+
+<button onclick="clearBill()">🧹 ล้างบิล</button>
+<button class="dark" onclick="saveIncome()">บันทึกรายรับ</button>
+</div>
+
+<!-- EXPENSE -->
+<div id="expense" class="card hidden">
+<h3>เพิ่มรายจ่าย</h3>
+<input type="number" id="expenseAmount" placeholder="จำนวนเงิน">
+<input type="text" id="expenseNote" placeholder="รายละเอียด">
+<button class="dark" onclick="saveExpense()">บันทึกรายจ่าย</button>
+</div>
+
+<!-- DATA -->
+<div id="data" class="card hidden">
+<h3>ข้อมูลย้อนหลัง</h3>
+<div id="allData"></div>
+</div>
+
+<script>
+function today(){ return new Date().toISOString().split("T")[0]; }
+function nowTime(){ return new Date().toLocaleTimeString(); }
+
+let db = JSON.parse(localStorage.getItem("restaurantDB")) || {};
+let currentBill=[];
+
+function showToast(message){
+let toast=document.getElementById("toast");
+toast.innerText=message;
+toast.classList.add("show");
+setTimeout(()=>toast.classList.remove("show"),2000);
+}
+
+function show(page){
+["home","income","expense","data"].forEach(id=>{
+document.getElementById(id).classList.add("hidden");
+});
+document.getElementById(page).classList.remove("hidden");
+updateDashboard();
+renderAllData();
+}
+
+function addMenu(name,price){
+currentBill.push({name,price:Number(price)||0});
+renderBill();
+}
+
+function renderBill(){
+let total=0;
+if(currentBill.length===0){
+document.getElementById("billList").innerHTML="ยังไม่มีรายการ";
+document.getElementById("billTotal").innerText=0;
+return;
+}
+
+let html="";
+currentBill.forEach((item,index)=>{
+total+=item.price;
+html+=`
+<div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+<span>${item.name} - ${item.price} บาท</span>
+<button onclick="removeItem(${index})" style="background:red;color:white;border:none;border-radius:5px;">❌</button>
+</div>`;
+});
+
+document.getElementById("billList").innerHTML=html;
+document.getElementById("billTotal").innerText=total;
+}
+
+function removeItem(index){
+currentBill.splice(index,1);
+renderBill();
+}
+
+function clearBill(){
+currentBill=[];
+renderBill();
+showToast("ล้างบิลแล้ว");
+}
+
+function saveIncome(){
+let t=today();
+if(!db[t]) db[t]={income:[],expense:[]};
+if(currentBill.length===0){
+showToast("ไม่มีรายการ");
+return;
+}
+
+let total=currentBill.reduce((a,b)=>a+b.price,0);
+
+db[t].income.push({
+items:[...currentBill],
+total:total,
+payment:document.getElementById("paymentType").value,
+time:nowTime()
+});
+
+currentBill=[];
+renderBill();
+saveDB();
+updateDashboard();
+renderAllData();
+showToast("บันทึกรายรับเรียบร้อย");
+}
+
+function saveExpense(){
+let t=today();
+if(!db[t]) db[t]={income:[],expense:[]};
+
+let amt=Number(document.getElementById("expenseAmount").value)||0;
+let note=document.getElementById("expenseNote").value||"-";
+
+db[t].expense.push({amount:amt,note,time:nowTime()});
+
+document.getElementById("expenseAmount").value="";
+document.getElementById("expenseNote").value="";
+
+saveDB();
+updateDashboard();
+renderAllData();
+showToast("บันทึกรายจ่ายเรียบร้อย");
+}
+
+function updateDashboard(){
+let t=today();
+if(!db[t]){
+document.getElementById("incomeTotal").innerText=0;
+document.getElementById("expenseTotal").innerText=0;
+document.getElementById("profitTotal").innerText=0;
+return;
+}
+
+let cash=0,transfer=0,grab=0,lineman=0;
+
+(db[t].income||[]).forEach(b=>{
+if(b.payment==="สด") cash+=b.total;
+if(b.payment==="โอน") transfer+=b.total;
+if(b.payment==="Grab") grab+=b.total;
+if(b.payment==="LINE MAN") lineman+=b.total;
+});
+
+let income=cash+transfer+grab+lineman;
+let expense=(db[t].expense||[]).reduce((a,b)=>a+b.amount,0);
+
+document.getElementById("cashTotal").innerText=cash;
+document.getElementById("transferTotal").innerText=transfer;
+document.getElementById("grabTotal").innerText=grab;
+document.getElementById("linemanTotal").innerText=lineman;
+document.getElementById("incomeTotal").innerText=income;
+document.getElementById("expenseTotal").innerText=expense;
+document.getElementById("profitTotal").innerText=income-expense;
+}
+
+function renderAllData(){
+let html="";
+let dates=Object.keys(db).sort().reverse();
+
+if(dates.length===0){
+document.getElementById("allData").innerHTML="ยังไม่มีข้อมูล";
+return;
+}
+
+dates.forEach(date=>{
+html+=`<h4>📅 ${date}</h4>`;
+
+(db[date].income||[]).forEach((b,i)=>{
+html+=`
+<div class="bill-box income-box">
+🟢 รายรับ บิล ${i+1} | ${b.payment} | ${b.total} บาท | ${b.time}<br>
+`;
+(b.items||[]).forEach(item=>{
+html+=`- ${item.name} (${item.price})<br>`;
+});
+html+="</div>";
+});
+
+(db[date].expense||[]).forEach(e=>{
+html+=`
+<div class="bill-box expense-box">
+🔴 รายจ่าย | ${e.note} | ${e.amount} บาท | ${e.time}
+</div>`;
+});
+});
+
+document.getElementById("allData").innerHTML=html;
+}
+
+function resetData(){
+if(confirm("ต้องการลบข้อมูลทั้งหมดหรือไม่?")){
+localStorage.removeItem("restaurantDB");
+location.reload();
+}
+}
+
+function saveDB(){
+localStorage.setItem("restaurantDB",JSON.stringify(db));
+}
+
+updateDashboard();
+renderAllData();
+renderBill();
+</script>
+
+</body>
+</html>
